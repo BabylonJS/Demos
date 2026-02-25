@@ -1,0 +1,25 @@
+{
+  "name": "3d-tiles",
+  "version": "1.0.0",
+  "description": "3D Tiles Renderer Demo",
+  "main": "src/index.html",
+  "dependencies": {
+    "@babylonjs/core": "^8.52.0",
+    "@babylonjs/loaders": "^8.52.1",
+    "3d-tiles-renderer": "^0.4.21",
+    "lil-gui": "^0.20.0"
+  },
+  "scripts": {
+    "start": "vite --open",
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "typescript": "~5.7.0"
+  },
+  "keywords": [
+    "typescript",
+    "javascript"
+  ]
+}
