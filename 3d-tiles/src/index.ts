@@ -1,16 +1,18 @@
-import { Scene } from '@babylonjs/core/scene';
-import { Engine } from '@babylonjs/core/Engines/engine';
-import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
-import { Vector2, Vector3, Color4 } from '@babylonjs/core/Maths/math';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { GeospatialClippingBehavior } from '@babylonjs/core/Behaviors/Cameras';
 import { Atmosphere } from '@babylonjs/addons/atmosphere';
 import { TilesRenderer } from '3d-tiles-renderer/babylonjs';
 import { CesiumIonAuthPlugin } from '3d-tiles-renderer/core/plugins';
 import GUI from 'lil-gui';
+import { Engine } from '@babylonjs/core/Engines/engine';
+import { Scene } from '@babylonjs/core/scene';
+import { Color4 } from '@babylonjs/core/Maths/math.color';
+import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
+import { Vector3, Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+
 
 const GOOGLE_TILES_ASSET_ID = 2275207;
-const CESIUM_ION_KEY = ''; // Insert key here during local development. Will get auto-injected in CI 
+const CESIUM_ION_KEY = 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
 const PLANET_RADIUS = 6378137;
 
 // WGS84 geodetic (lat/lon/alt) to ECEF conversion
