@@ -1,5 +1,5 @@
-
 import { GeospatialClippingBehavior } from '@babylonjs/core/Behaviors/Cameras';
+import { Atmosphere } from '@babylonjs/addons/atmosphere';
 import { TilesRenderer } from '3d-tiles-renderer/babylonjs';
 import { CesiumIonAuthPlugin } from '3d-tiles-renderer/core/plugins';
 import GUI from 'lil-gui';
@@ -7,7 +7,9 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector3, Vector2 } from '@babylonjs/core/Maths/math.vector';
+import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+
 
 const GOOGLE_TILES_ASSET_ID = 2275207;
 const CESIUM_ION_KEY = 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
@@ -117,10 +119,23 @@ camera.center = new Vector3( initialX, initialY, initialZ );
 camera.pitch = 1.167625429373872;
 camera.yaw = - 0.2513281792775774;
 camera.limits.radiusMin = 25;
+camera.limits.pitchDisabledRadiusScale = new Vector2( 0.5, 1.5 );
+camera.limits.radiusMax = PLANET_RADIUS*2;
 camera.radius = initialRadius;
+
 
 camera.checkCollisions = true;
 scene.collisionsEnabled = true;
+
+// atmosphere — sun direction in ECEF should point toward the lit side of the globe
+const sunDir = new Vector3( initialX, initialY, initialZ ).normalize().scale( -1 );
+const sun = new DirectionalLight( 'sun', sunDir, scene );
+sun.intensity = 3;
+
+const atmosphere = new Atmosphere( 'atmosphere', scene, [ sun ], {
+	isLinearSpaceLight: true,
+	isLinearSpaceComposition: true,
+} );
 
 // tiles
 const tiles = new TilesRenderer( '', scene );
@@ -191,8 +206,7 @@ async function doSearch() {
 
 	try {
 
-		const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${ encodeURIComponent( query ) }&format=json&limit=1`;
-		const url = `https://corsproxy.io/?${ encodeURIComponent( nominatimUrl ) }`;
+		const url = `https://nominatim.openstreetmap.org/search?q=${ encodeURIComponent( query ) }&format=json&limit=1`;
 		const res = await fetch( url );
 
 		if ( ! res.ok ) {
