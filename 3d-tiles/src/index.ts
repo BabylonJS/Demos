@@ -1,11 +1,16 @@
-import { Scene, Engine, GeospatialCamera, Vector3, Color4 } from '@babylonjs/core';
+
 import { GeospatialClippingBehavior } from '@babylonjs/core/Behaviors/Cameras';
 import { TilesRenderer } from '3d-tiles-renderer/babylonjs';
 import { CesiumIonAuthPlugin } from '3d-tiles-renderer/core/plugins';
 import GUI from 'lil-gui';
+import { Engine } from '@babylonjs/core/Engines/engine';
+import { Scene } from '@babylonjs/core/scene';
+import { Color4 } from '@babylonjs/core/Maths/math.color';
+import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 const GOOGLE_TILES_ASSET_ID = 2275207;
-const CESIUM_ION_KEY = ''; // Insert key here during local development. Will get auto-injected in CI 
+const CESIUM_ION_KEY = 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
 const PLANET_RADIUS = 6378137;
 
 // WGS84 geodetic (lat/lon/alt) to ECEF conversion
