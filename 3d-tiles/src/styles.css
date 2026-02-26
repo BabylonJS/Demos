@@ -58,6 +58,7 @@ canvas {
     white-space: pre;
     text-overflow: ellipsis;
 	padding-right: 25px;
+	align-self: flex-end;
 }
 
 #logos {
