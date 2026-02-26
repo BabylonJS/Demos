@@ -131,6 +131,7 @@ scene.collisionsEnabled = true;
 const sunDir = new Vector3( initialX, initialY, initialZ ).normalize().scale( -1 );
 const sun = new DirectionalLight( 'sun', sunDir, scene );
 sun.intensity = 3;
+sun.parent = camera; // lock sun direction to camera for consistent lighting as you navigate around the globe
 
 const atmosphere = new Atmosphere( 'atmosphere', scene, [ sun ], {
 	isLinearSpaceLight: true,

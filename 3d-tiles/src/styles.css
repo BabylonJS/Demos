@@ -42,9 +42,17 @@ canvas {
 	bottom: 0;
 	width: 100%;
 	display: flex;
-	padding: 5px;
+	align-items: flex-end;
 	box-sizing: border-box;
 	pointer-events: none;
+}
+
+#footer > img {
+	height: 18px;
+	min-height: 16px;
+	max-height: 19px;
+	padding: 10px 10px 5px 10px;
+	flex-shrink: 0;
 }
 
 #credits {
