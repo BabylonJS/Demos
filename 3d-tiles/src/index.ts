@@ -115,13 +115,15 @@ const [ initialX, initialY, initialZ ] = latLonAltToEcef( initialLat, initialLon
 
 
 // Set center to initial location (ECEF coordinates)
-camera.center = new Vector3( initialX, initialY, initialZ );
-camera.pitch = 1.167625429373872;
-camera.yaw = - 0.2513281792775774;
+// Set limits and radius BEFORE pitch — pitch limits depend on radius,
+// so setting pitch while radius is still at the huge default value clamps it to 0.
 camera.limits.radiusMin = 25;
 camera.limits.pitchDisabledRadiusScale = new Vector2( 0.5, 1.5 );
 camera.limits.radiusMax = PLANET_RADIUS*2;
+camera.center = new Vector3( initialX, initialY, initialZ );
 camera.radius = initialRadius;
+camera.pitch = 1.167625429373872;
+camera.yaw = - 0.2513281792775774;
 
 
 camera.checkCollisions = true;
@@ -146,6 +148,17 @@ tiles.registerPlugin( new CesiumIonAuthPlugin( {
 	autoRefreshToken: true,
 } ) );
 tiles.errorTarget = params.errorTarget;
+
+// Enable collisions on tile meshes as they load
+( tiles as any ).addEventListener( 'load-model', ( event: any ) => {
+	const tileScene = event?.scene;
+	if ( tileScene ) {
+		const meshes = tileScene.getChildMeshes?.() ?? [];
+		for ( const mesh of meshes ) {
+			mesh.checkCollisions = true;
+		}
+	}
+} );
 
 // Babylon render loop
 
@@ -230,7 +243,20 @@ async function doSearch() {
 		navParams.lat = parseFloat( place.lat );
 		navParams.lon = parseFloat( place.lon );
 
-		const [ x, y, z ] = latLonAltToEcef( navParams.lat, navParams.lon, 0 );
+		// Fetch terrain elevation at this location
+		let elevation = 0;
+		try {
+			const elevUrl = `https://api.open-elevation.com/api/v1/lookup?locations=${ navParams.lat },${ navParams.lon }`;
+			const elevRes = await fetch( elevUrl );
+			if ( elevRes.ok ) {
+				const elevData = await elevRes.json();
+				elevation = elevData.results?.[ 0 ]?.elevation ?? 0;
+			}
+		} catch {
+			// Fall back to 0 elevation if API is unavailable
+			elevation = 0;
+		}
+		const [ x, y, z ] = latLonAltToEcef( navParams.lat, navParams.lon, elevation + 200 );
 		navParams.ecefX = x;
 		navParams.ecefY = y;
 		navParams.ecefZ = z;
