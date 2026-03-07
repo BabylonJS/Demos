@@ -9,10 +9,12 @@ import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
 import { Vector3, Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 
 
 const GOOGLE_TILES_ASSET_ID = 2275207;
-const CESIUM_ION_KEY = 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
+const CESIUM_ION_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0MDdmNDk0Zi1jNmI5LTRlMDUtOTllYy03YWM5MWE3MzliNGMiLCJpZCI6Mzc2NDg4LCJpYXQiOjE3Njc5MTA0NTV9.rY4cDMkz0cAv8al_nkk2KuJ8Omdo9AuHV-j3aR0W_FI';
+// 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
 const PLANET_RADIUS = 6378137;
 
 // WGS84 geodetic (lat/lon/alt) to ECEF conversion
@@ -65,12 +67,38 @@ const params = {
 	enabled: true,
 	visibleTiles: 0,
 	errorTarget: 12, // Lower value = more detail, less LOD overlap/z-fighting
+	timeOfDay: 14, // default to afternoon
+	mieScattering: 5,
+	rayleighScattering: 2,
+	ozoneAbsorption: 2,
+	exposure: 1.5,
 };
 
 const gui = new GUI();
 gui.add( params, 'enabled' );
 gui.add( params, 'visibleTiles' ).name( 'Visible Tiles' ).listen().disable();
 gui.add( params, 'errorTarget', 1, 100 );
+const timeCtrl = gui.add( params, 'timeOfDay', 0, 24, 0.1 ).name( 'Time of Day' ).listen();
+
+// Time-of-day animation — variable speed: slower during daylight, faster at night
+let animatingTime = false;
+let lastAnimTime = 0;
+const DAY_SPEED = 1.5; // hours/sec during daytime (6–18)
+const NIGHT_SPEED = 6; // hours/sec during nighttime
+
+const animBtn = gui.add( { toggleTimeAnimation() {
+
+	animatingTime = ! animatingTime;
+	if ( animatingTime ) lastAnimTime = performance.now();
+	animBtn.name( animatingTime ? '⏸ Pause' : '▶ Play Time Cycle' );
+
+} }, 'toggleTimeAnimation' ).name( '▶ Play Time Cycle' );
+
+const atmosphereFolder = gui.addFolder( 'Atmosphere' );
+atmosphereFolder.add( params, 'mieScattering', 0, 10, 0.1 ).name( 'Mie (sunset glow)' );
+atmosphereFolder.add( params, 'rayleighScattering', 0, 5, 0.1 ).name( 'Rayleigh (blue sky)' );
+atmosphereFolder.add( params, 'ozoneAbsorption', 0, 5, 0.1 ).name( 'Ozone' );
+atmosphereFolder.add( params, 'exposure', 0, 5, 0.1 ).name( 'Exposure' );
 
 // engine
 const canvas = document.getElementById( 'renderCanvas' ) as HTMLCanvasElement;
@@ -79,7 +107,7 @@ engine.setHardwareScalingLevel( 1 / window.devicePixelRatio );
 
 // scene
 const scene = new Scene( engine );
-scene.clearColor = new Color4( 0.05, 0.05, 0.05, 1 );
+scene.clearColor = new Color4( 0.4, 0.6, 0.9, 1 );
 
 // 3D Tiles data uses right-handed coordinate system
 scene.useRightHandedSystem = true;
@@ -129,16 +157,82 @@ camera.yaw = - 0.2513281792775774;
 camera.checkCollisions = true;
 scene.collisionsEnabled = true;
 
-// atmosphere — sun direction in ECEF should point toward the lit side of the globe
-const sunDir = new Vector3( initialX, initialY, initialZ ).normalize().scale( -1 );
-const sun = new DirectionalLight( 'sun', sunDir, scene );
+// atmosphere
+const sun = new DirectionalLight( 'sun', Vector3.Up(), scene );
 sun.intensity = 3;
-sun.parent = camera; // lock sun direction to camera for consistent lighting as you navigate around the globe
+
+// Ambient fill light — provides moonlight / skylight so nighttime isn't pitch black
+const ambientLight = new HemisphericLight( 'ambient', Vector3.Up(), scene );
+ambientLight.intensity = 0;
 
 const atmosphere = new Atmosphere( 'atmosphere', scene, [ sun ], {
 	isLinearSpaceLight: true,
 	isLinearSpaceComposition: true,
+	exposure: 1.5,
+	multiScatteringIntensity: 1.2,
 } );
+
+// Slight scattering boost for more vivid sunrises/sunsets
+atmosphere.physicalProperties.mieScatteringScale = 1.5;
+atmosphere.physicalProperties.rayleighScatteringScale = 1.2;
+atmosphere.physicalProperties.ozoneAbsorptionScale = 1.0;
+
+// Time-of-day sun positioning
+// Computes local up/east/north at camera center, then sweeps the sun in a realistic arc.
+const _up = new Vector3();
+const _east = new Vector3();
+const _north = new Vector3();
+const _sunDirection = new Vector3();
+const _tmpVec = new Vector3();
+const _northPole = new Vector3( 0, 0, 1 ); // Z-axis in ECEF
+
+function updateSunFromTimeOfDay( timeOfDay: number ) {
+
+	// Local coordinate frame at camera position on the globe
+	_up.copyFrom( camera.center ).normalize();
+	Vector3.CrossToRef( _northPole, _up, _east );
+	_east.normalize();
+	Vector3.CrossToRef( _up, _east, _north );
+	_north.normalize();
+
+	// Sun arc — hour angle sweeps east→west, elevation peaks at noon
+	const hourAngle = ( ( timeOfDay - 12 ) / 24 ) * Math.PI * 2; // 0 at noon
+	const elevation = Math.cos( hourAngle ); // 1 at noon, -1 at midnight
+	const horizontal = Math.sin( hourAngle ); // east(-) to west(+)
+
+	// Direction toward the sun = elevation*up + horizontal*east (+ slight north tilt)
+	_up.scaleToRef( Math.max( elevation, - 0.3 ), _sunDirection );
+	_east.scaleToRef( - horizontal, _tmpVec );
+	_sunDirection.addInPlace( _tmpVec );
+	_north.scaleToRef( 0.2, _tmpVec ); // slight northward tilt for realism
+	_sunDirection.addInPlace( _tmpVec );
+	_sunDirection.normalize();
+
+	// DirectionalLight direction points FROM the sun
+	_sunDirection.scaleToRef( - 1, _tmpVec );
+	sun.direction = _tmpVec;
+
+	// Intensity based on sun elevation — atmosphere handles diffuse color via transmittance
+	sun.intensity = elevation > 0 ? 2 + elevation * 2 : Math.max( 0.5, 0.5 + elevation * 2 );
+
+	// Ramp up ambient fill as sun drops below horizon
+	ambientLight.intensity = elevation < 0.1 ? 0.6 * ( 1 - Math.max( 0, elevation ) / 0.1 ) : 0;
+	_up.copyFrom( camera.center ).normalize();
+	ambientLight.direction.copyFrom( _up ).scaleInPlace( - 1 );
+
+	// Blend scene clear color: sky blue during day → dark navy at night
+	const dayR = 0.4, dayG = 0.6, dayB = 0.9;
+	const nightR = 0.05, nightG = 0.05, nightB = 0.15;
+	const t = Math.max( 0, Math.min( 1, ( elevation + 0.1 ) / 0.3 ) );
+	scene.clearColor.set(
+		nightR + t * ( dayR - nightR ),
+		nightG + t * ( dayG - nightG ),
+		nightB + t * ( dayB - nightB ),
+		1
+	);
+
+
+}
 
 // tiles
 const tiles = new TilesRenderer( '', scene );
@@ -149,13 +243,23 @@ tiles.registerPlugin( new CesiumIonAuthPlugin( {
 } ) );
 tiles.errorTarget = params.errorTarget;
 
-// Enable collisions on tile meshes as they load
+// Configure tile meshes as they load
 ( tiles as any ).addEventListener( 'load-model', ( event: any ) => {
 	const tileScene = event?.scene;
 	if ( tileScene ) {
 		const meshes = tileScene.getChildMeshes?.() ?? [];
 		for ( const mesh of meshes ) {
 			mesh.checkCollisions = true;
+
+			const mat = mesh.material;
+			if ( mat ) {
+
+				// Google tiles use KHR_materials_unlit — disable so they respond to dynamic lighting
+				mat.unlit = false;
+				mat.backFaceCulling = true;
+				mat.twoSidedLighting = false;
+
+			}
 		}
 	}
 } );
@@ -163,6 +267,27 @@ tiles.errorTarget = params.errorTarget;
 // Babylon render loop
 
 scene.onBeforeRenderObservable.add( () => {
+
+	// Advance time-of-day animation — slow during day, fast at night
+	if ( animatingTime ) {
+
+		const now = performance.now();
+		const dt = ( now - lastAnimTime ) / 1000;
+		lastAnimTime = now;
+		const h = params.timeOfDay;
+		const isDaytime = h >= 5 && h <= 19;
+		const speed = isDaytime ? DAY_SPEED : NIGHT_SPEED;
+		params.timeOfDay = ( h + dt * speed ) % 24;
+
+	}
+
+	updateSunFromTimeOfDay( params.timeOfDay );
+
+	// Sync atmosphere sliders
+	atmosphere.physicalProperties.mieScatteringScale = params.mieScattering;
+	atmosphere.physicalProperties.rayleighScatteringScale = params.rayleighScattering;
+	atmosphere.physicalProperties.ozoneAbsorptionScale = params.ozoneAbsorption;
+	atmosphere.exposure = params.exposure;
 
 	if ( params.enabled ) {
 
