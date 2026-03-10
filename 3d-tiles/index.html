@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>3D Tiles + Babylon.js: Google Maps Aerial</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="./src/styles.css">
+</head>
+
+<body>
+    <div id="loading-screen">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Loading 3D Tiles...</p>
+            <p class="loading-sub" id="loading-mobile-msg" style="display:none">Some features are disabled on mobile due to memory constraints</p>
+        </div>
+    </div>
+    <div id="footer">
+        <img src="./src/google.png" alt="Google Maps" />
+        <div id="credits"></div>
+    </div>
+    <canvas id="renderCanvas"></canvas>
+    <script type="module" src="./src/index.ts"></script>
+</body>
+
+</html>
