@@ -1,19 +1,28 @@
 import { GeospatialClippingBehavior } from '@babylonjs/core/Behaviors/Cameras';
-import { Atmosphere } from '@babylonjs/addons/atmosphere';
 import { TilesRenderer } from '3d-tiles-renderer/babylonjs';
 import { CesiumIonAuthPlugin } from '3d-tiles-renderer/core/plugins';
 import GUI from 'lil-gui';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
+import '@babylonjs/core/Collisions/collisionCoordinator';
 import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
 import { Vector3, Vector2 } from '@babylonjs/core/Maths/math.vector';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-
 
 const GOOGLE_TILES_ASSET_ID = 2275207;
 const CESIUM_ION_KEY = 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
 const PLANET_RADIUS = 6378137;
+
+// Mobile / iOS detection — used to reduce memory pressure and avoid Safari page reloads
+const isMobile = /iPhone|iPad|iPod|Android/i.test( navigator.userAgent );
+
+// Show mobile message on loading screen
+if ( isMobile ) {
+
+	const mobileMsg = document.getElementById( 'loading-mobile-msg' );
+	if ( mobileMsg ) mobileMsg.style.display = 'block';
+
+}
 
 // WGS84 geodetic (lat/lon/alt) to ECEF conversion
 // Once upstreamed to Babylon.js, these can be removed
@@ -64,10 +73,11 @@ function ecefToLatLonAlt( x: number, y: number, z: number ) {
 const params = {
 	enabled: true,
 	visibleTiles: 0,
-	errorTarget: 12, // Lower value = more detail, less LOD overlap/z-fighting
+	errorTarget: isMobile ? 24 : 12, // Higher on mobile to reduce tile count & memory
 };
 
 const gui = new GUI();
+if ( isMobile ) gui.close();
 gui.add( params, 'enabled' );
 gui.add( params, 'visibleTiles' ).name( 'Visible Tiles' ).listen().disable();
 gui.add( params, 'errorTarget', 1, 100 );
@@ -75,11 +85,13 @@ gui.add( params, 'errorTarget', 1, 100 );
 // engine
 const canvas = document.getElementById( 'renderCanvas' ) as HTMLCanvasElement;
 const engine = new Engine( canvas, true, { useLargeWorldRendering: true } );
-engine.setHardwareScalingLevel( 1 / window.devicePixelRatio );
+// On mobile, cap at 2x to reduce GPU memory; desktop uses full devicePixelRatio
+const maxDpr = isMobile ? Math.min( window.devicePixelRatio, 2 ) : window.devicePixelRatio;
+engine.setHardwareScalingLevel( 1 / maxDpr );
 
 // scene
 const scene = new Scene( engine );
-scene.clearColor = new Color4( 0.05, 0.05, 0.05, 1 );
+scene.clearColor = new Color4( 0, 0, 0, 1 );
 
 // 3D Tiles data uses right-handed coordinate system
 scene.useRightHandedSystem = true;
@@ -126,19 +138,9 @@ camera.pitch = 1.167625429373872;
 camera.yaw = - 0.2513281792775774;
 
 
-camera.checkCollisions = true;
-scene.collisionsEnabled = true;
+camera.checkCollisions = !isMobile;
+scene.collisionsEnabled = !isMobile;
 
-// atmosphere — sun direction in ECEF should point toward the lit side of the globe
-const sunDir = new Vector3( initialX, initialY, initialZ ).normalize().scale( -1 );
-const sun = new DirectionalLight( 'sun', sunDir, scene );
-sun.intensity = 3;
-sun.parent = camera; // lock sun direction to camera for consistent lighting as you navigate around the globe
-
-const atmosphere = new Atmosphere( 'atmosphere', scene, [ sun ], {
-	isLinearSpaceLight: true,
-	isLinearSpaceComposition: true,
-} );
 
 // tiles
 const tiles = new TilesRenderer( '', scene );
@@ -148,19 +150,10 @@ tiles.registerPlugin( new CesiumIonAuthPlugin( {
 	autoRefreshToken: true,
 } ) );
 tiles.errorTarget = params.errorTarget;
-
-// Enable collisions on tile meshes as they load
-( tiles as any ).addEventListener( 'load-model', ( event: any ) => {
-	const tileScene = event?.scene;
-	if ( tileScene ) {
-		const meshes = tileScene.getChildMeshes?.() ?? [];
-		for ( const mesh of meshes ) {
-			mesh.checkCollisions = true;
-		}
-	}
-} );
+tiles.checkCollisions = !isMobile;
 
 // Babylon render loop
+let loadingDismissed = false;
 
 scene.onBeforeRenderObservable.add( () => {
 
@@ -169,6 +162,20 @@ scene.onBeforeRenderObservable.add( () => {
 		tiles.errorTarget = params.errorTarget;
 		tiles.update();
 		params.visibleTiles = (tiles as any).visibleTiles.size;
+
+	}
+
+	// Dismiss loading screen once enough tiles are visible to fill the view
+	if ( !loadingDismissed && params.visibleTiles >= 20 ) {
+
+		loadingDismissed = true;
+		const loadingScreen = document.getElementById( 'loading-screen' );
+		if ( loadingScreen ) {
+
+			loadingScreen.classList.add( 'fade-out' );
+			setTimeout( () => loadingScreen.remove(), 600 );
+
+		}
 
 	}
 
