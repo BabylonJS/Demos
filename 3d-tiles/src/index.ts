@@ -165,21 +165,15 @@ scene.onBeforeRenderObservable.add( () => {
 
 	}
 
-	// Dismiss loading screen once the initial tiles have finished loading
-	if ( !loadingDismissed && params.visibleTiles > 0 ) {
+	// Dismiss loading screen once enough tiles are visible to fill the view
+	if ( !loadingDismissed && params.visibleTiles >= 20 ) {
 
-		const progress = ( tiles as any ).loadProgress;
-		// loadProgress = 1.0 means nothing is queued/downloading/parsing
-		if ( progress >= 1.0 ) {
+		loadingDismissed = true;
+		const loadingScreen = document.getElementById( 'loading-screen' );
+		if ( loadingScreen ) {
 
-			loadingDismissed = true;
-			const loadingScreen = document.getElementById( 'loading-screen' );
-			if ( loadingScreen ) {
-
-				loadingScreen.classList.add( 'fade-out' );
-				setTimeout( () => loadingScreen.remove(), 600 );
-
-			}
+			loadingScreen.classList.add( 'fade-out' );
+			setTimeout( () => loadingScreen.remove(), 600 );
 
 		}
 
