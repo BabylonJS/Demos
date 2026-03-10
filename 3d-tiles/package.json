@@ -7,7 +7,7 @@
     "@babylonjs/addons": "^8.52.1",
     "@babylonjs/core": "^8.52.1",
     "@babylonjs/loaders": "^8.52.1",
-    "3d-tiles-renderer": "^0.4.21",
+    "3d-tiles-renderer": "^0.4.22",
     "lil-gui": "^0.20.0"
   },
   "scripts": {
