@@ -8,8 +8,6 @@ import { Color4 } from '@babylonjs/core/Maths/math.color';
 import '@babylonjs/core/Collisions/collisionCoordinator';
 import { GeospatialCamera } from '@babylonjs/core/Cameras/geospatialCamera';
 import { Vector3, Vector2 } from '@babylonjs/core/Maths/math.vector';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 
 const GOOGLE_TILES_ASSET_ID = 2275207;
 const CESIUM_ION_KEY = 'CESIUM_ION_KEY'; // Insert key here during local development. Will get auto-injected in CI 
@@ -71,6 +69,7 @@ const params = {
 };
 
 const gui = new GUI();
+if ( isMobile ) gui.close();
 gui.add( params, 'enabled' );
 gui.add( params, 'visibleTiles' ).name( 'Visible Tiles' ).listen().disable();
 gui.add( params, 'errorTarget', 1, 100 );
@@ -134,9 +133,6 @@ camera.yaw = - 0.2513281792775774;
 camera.checkCollisions = !isMobile;
 scene.collisionsEnabled = !isMobile;
 
-// lighting
-const ambientLight = new HemisphericLight( 'ambient', Vector3.Up(), scene );
-ambientLight.intensity = 0.4;
 
 // tiles
 const tiles = new TilesRenderer( '', scene );
