@@ -152,6 +152,20 @@ tiles.registerPlugin( new CesiumIonAuthPlugin( {
 tiles.errorTarget = params.errorTarget;
 tiles.checkCollisions = !isMobile;
 
+// On mobile, aggressively limit the LRU cache to stay under Safari/Chrome memory limits
+// Defaults are ~430 MB / 8000 tiles which cause mobile browsers to OOM and reload the tab
+if ( isMobile ) {
+
+	const MB = 1024 * 1024;
+	tiles.lruCache.maxBytesSize = 150 * MB;
+	tiles.lruCache.minBytesSize = 100 * MB;
+	tiles.lruCache.maxSize = 1500;
+	tiles.lruCache.minSize = 1000;
+	tiles.downloadQueue.maxJobs = 6;
+	tiles.parseQueue.maxJobs = 2;
+
+}
+
 // Babylon render loop
 let loadingDismissed = false;
 
